@@ -1,0 +1,13 @@
+{
+  "name": "simulador-gramatica-automato",
+  "version": "1.0.0",
+  "description": "Converte gramáticas regulares em autômatos finitos (AFN-ε, AFN, AFD e AFD mínimo) e simula a leitura de cadeias.",
+  "private": true,
+  "scripts": {
+    "test": "node --test tests/"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "author": "Carolina Jordão Fonseca"
+}

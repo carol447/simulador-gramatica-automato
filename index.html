@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Simulador GR → AF</title>
+  <meta name="description" content="Converte gramáticas regulares em autômatos finitos (AFN-ε, AFN, AFD e AFD mínimo) e simula a leitura de cadeias passo a passo." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+  <script>
+    // Aplica o tema salvo antes da pintura, para não piscar.
+    try { const t = localStorage.getItem('lftc.tema'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
+  </script>
+</head>
+<body>
+  <header class="topo">
+    <div class="marca">
+      <svg class="logo" viewBox="0 0 40 40" aria-hidden="true">
+        <circle cx="12" cy="20" r="8" />
+        <circle cx="30" cy="20" r="8" /><circle cx="30" cy="20" r="5.5" />
+        <path d="M20 20h1.5" /><path d="M19.5 17l2.5 3-2.5 3" />
+      </svg>
+      <div>
+        <h1>Gramática Regular → Autômato Finito</h1>
+        <p>Conversão, determinização, minimização e simulação passo a passo</p>
+      </div>
+    </div>
+    <div class="acoes-topo">
+      <label class="sr-only" for="exemplos">Carregar exemplo</label>
+      <select id="exemplos" class="campo"></select>
+      <button id="btnCompartilhar" class="btn" type="button" title="Copia um link com a gramática, a cadeia e a visão atuais">Copiar link</button>
+      <button id="btnTema" class="btn icone" type="button" aria-label="Alternar tema claro/escuro" title="Alternar tema">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9z" /></svg>
+      </button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside class="lateral">
+      <section class="cartao">
+        <div class="cartao-titulo">
+          <h2><label for="gramatica">Gramática</label></h2>
+          <span class="dica"><kbd>Ctrl</kbd> + <kbd>Enter</kbd> gera</span>
+        </div>
+        <div class="editor">
+          <pre id="numeros" class="numeros" aria-hidden="true"></pre>
+          <textarea id="gramatica" spellcheck="false" wrap="off" autocomplete="off" autocapitalize="off"></textarea>
+        </div>
+        <div class="linha-controles">
+          <label class="sr-only" for="tipo">Tipo de gramática</label>
+          <select id="tipo" class="campo">
+            <option value="auto">Detectar tipo</option>
+            <option value="GLUD">GLUD — unitária à direita</option>
+            <option value="GLD">GLD — linear à direita</option>
+            <option value="GLUE">GLUE — unitária à esquerda</option>
+            <option value="GLE">GLE — linear à esquerda</option>
+          </select>
+          <button id="btnGerar" class="btn primario" type="button">Gerar autômatos</button>
+        </div>
+        <ul id="diagnosticos" class="diagnosticos" aria-live="polite"></ul>
+      </section>
+
+      <section class="cartao">
+        <h2>Resumo</h2>
+        <dl id="resumo" class="resumo"></dl>
+      </section>
+
+      <details class="cartao ajuda">
+        <summary>Sintaxe e convenções</summary>
+        <ul>
+          <li>Uma regra por linha: <code>S -&gt; aA | bB | ε</code>. A seta também pode ser <code>→</code> ou <code>::=</code>.</li>
+          <li>Linha começando com <code>|</code> continua a regra anterior; <code>#</code> inicia comentário.</li>
+          <li><b>Variáveis:</b> maiúsculas, com dígitos ou apóstrofo opcionais (<code>S</code>, <code>A1</code>, <code>B'</code>).</li>
+          <li><b>Terminais:</b> letras minúsculas e dígitos, um caractere cada.</li>
+          <li><b>Palavra vazia:</b> <code>ε</code>, <code>λ</code>, <code>&amp;</code> ou <code>eps</code>.</li>
+          <li>O símbolo inicial é o lado esquerdo da primeira regra.</li>
+          <li><b>GLD/GLE:</b> <code>A → wB</code> / <code>A → Bw</code> com <code>w</code> qualquer. <b>GLUD/GLUE:</b> o mesmo com <code>|w| ≤ 1</code>. Produções <code>A → B</code> e <code>A → ε</code> valem em todos os tipos.</li>
+        </ul>
+      </details>
+    </aside>
+
+    <main class="principal">
+      <section class="cartao cartao-grafo">
+        <div class="barra">
+          <div class="abas" role="tablist" id="abasAutomato" aria-label="Etapa da conversão">
+            <button role="tab" data-etapa="afne" aria-selected="true">AFN-ε <span class="contagem"></span></button>
+            <button role="tab" data-etapa="afn" aria-selected="false">AFN <span class="contagem"></span></button>
+            <button role="tab" data-etapa="afd" aria-selected="false">AFD <span class="contagem"></span></button>
+            <button role="tab" data-etapa="min" aria-selected="false">AFD mínimo <span class="contagem"></span></button>
+          </div>
+          <div class="ferramentas">
+            <button class="btn icone" id="btnZoomMenos" type="button" aria-label="Diminuir zoom">−</button>
+            <span id="zoomValor" class="zoom-valor">100%</span>
+            <button class="btn icone" id="btnZoomMais" type="button" aria-label="Aumentar zoom">+</button>
+            <button class="btn" id="btnAjustar" type="button" title="Ajustar o autômato à área visível">Ajustar</button>
+            <button class="btn" id="btnReorganizar" type="button" title="Descartar posições arrastadas e recalcular o layout">Reorganizar</button>
+            <details class="menu">
+              <summary class="btn">Exportar</summary>
+              <div class="menu-itens">
+                <button type="button" data-exportar="dot">Graphviz (.dot)</button>
+                <button type="button" data-exportar="json">Autômato (.json)</button>
+                <button type="button" data-exportar="csv">Tabela δ (.csv)</button>
+              </div>
+            </details>
+          </div>
+        </div>
+        <div id="viewport" class="viewport" aria-label="Diagrama do autômato">
+          <div id="dimensionador" class="dimensionador"><div id="palco" class="palco"></div></div>
+          <div id="vazio" class="vazio" hidden></div>
+        </div>
+        <div class="legenda" aria-hidden="true">
+          <span><i class="mini inicial"></i>inicial</span>
+          <span><i class="mini final"></i>final</span>
+          <span><i class="mini ativo"></i>ativo na simulação</span>
+          <span class="legenda-dica">Arraste os estados para reposicionar.</span>
+        </div>
+      </section>
+
+      <section class="cartao cartao-abas">
+        <div class="abas abas-painel" role="tablist" id="abasPainel" aria-label="Painéis">
+          <button role="tab" data-painel="simulacao" aria-selected="true">Simulação</button>
+          <button role="tab" data-painel="construcao" aria-selected="false">Construção</button>
+          <button role="tab" data-painel="tabela" aria-selected="false">Tabela δ</button>
+          <button role="tab" data-painel="lote" aria-selected="false">Testes em lote</button>
+          <button role="tab" data-painel="linguagem" aria-selected="false">Linguagem</button>
+        </div>
+
+        <div class="painel" id="painel-simulacao" role="tabpanel">
+          <div class="sim-topo">
+            <div class="campo-cadeia">
+              <label for="cadeia">Cadeia</label>
+              <input id="cadeia" class="campo mono" autocomplete="off" spellcheck="false" placeholder="vazio = ε" />
+            </div>
+            <div class="controles-sim" role="group" aria-label="Controles da simulação">
+              <button class="btn icone" id="simInicio" type="button" title="Início (Home)" aria-label="Ir para o início">
+                <svg viewBox="0 0 24 24"><path d="M6 5v14M18 5l-9 7 9 7z" /></svg></button>
+              <button class="btn icone" id="simVoltar" type="button" title="Voltar (←)" aria-label="Voltar um passo">
+                <svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" /></svg></button>
+              <button class="btn icone primario" id="simTocar" type="button" title="Reproduzir/pausar (espaço)" aria-label="Reproduzir">
+                <svg viewBox="0 0 24 24" class="i-play"><path d="M8 5l11 7-11 7z" /></svg>
+                <svg viewBox="0 0 24 24" class="i-pause"><path d="M8 5v14M16 5v14" /></svg></button>
+              <button class="btn icone" id="simAvancar" type="button" title="Avançar (→)" aria-label="Avançar um passo">
+                <svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" /></svg></button>
+              <button class="btn icone" id="simFim" type="button" title="Fim (End)" aria-label="Ir para o fim">
+                <svg viewBox="0 0 24 24"><path d="M18 5v14M6 5l9 7-9 7z" /></svg></button>
+              <label class="velocidade" title="Velocidade da animação">
+                <span>Velocidade</span>
+                <input id="velocidade" type="range" min="1" max="5" value="3" />
+              </label>
+            </div>
+          </div>
+          <div id="fita" class="fita" aria-label="Fita de entrada"></div>
+          <div id="statusSim" class="status-sim" aria-live="polite"></div>
+          <ol id="rastro" class="rastro"></ol>
+        </div>
+
+        <div class="painel" id="painel-construcao" role="tabpanel" hidden></div>
+        <div class="painel" id="painel-tabela" role="tabpanel" hidden></div>
+
+        <div class="painel" id="painel-lote" role="tabpanel" hidden>
+          <div class="lote">
+            <div>
+              <label for="lote">Uma cadeia por linha. Prefixe com <code>+</code> (deve aceitar) ou <code>-</code> (deve rejeitar); <code>ε</code> é a cadeia vazia.</label>
+              <textarea id="lote" class="campo mono" spellcheck="false" rows="7"></textarea>
+              <button id="btnLote" class="btn primario" type="button">Executar testes</button>
+            </div>
+            <div id="resultadoLote" class="resultado-lote"></div>
+          </div>
+        </div>
+
+        <div class="painel" id="painel-linguagem" role="tabpanel" hidden>
+          <div class="linguagem">
+            <div>
+              <h3>Palavras aceitas</h3>
+              <p id="classeLinguagem" class="classe-linguagem"></p>
+              <label class="inline">Até o tamanho
+                <input id="tamanhoMax" class="campo mono curto" type="number" min="0" max="12" value="6" />
+              </label>
+              <div id="palavras" class="palavras"></div>
+            </div>
+            <div>
+              <h3>Gramática equivalente (do AFD mínimo)</h3>
+              <pre id="gramaticaEquivalente" class="codigo"></pre>
+              <button id="btnCarregarEquivalente" class="btn" type="button">Carregar no editor</button>
+            </div>
+            <div>
+              <h3>Comparar com outra gramática</h3>
+              <label class="sr-only" for="outraGramatica">Outra gramática</label>
+              <textarea id="outraGramatica" class="campo mono" rows="4" spellcheck="false" placeholder="S -> aS | b"></textarea>
+              <button id="btnComparar" class="btn" type="button">Verificar equivalência</button>
+              <p id="resultadoComparacao" class="resultado-comparacao" aria-live="polite"></p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <footer class="rodape">
+    Carolina Jordão Fonseca · Linguagens Formais e Teoria da Computação · FCT/UNESP
+  </footer>
+
+  <div id="aviso" class="aviso" role="status" aria-live="polite"></div>
+
+  <script src="vendor/jsplumb.min.js"></script>
+  <script src="src/core/gramatica.js"></script>
+  <script src="src/core/automato.js"></script>
+  <script src="src/core/conversao.js"></script>
+  <script src="src/core/pipeline.js"></script>
+  <script src="src/core/layout.js"></script>
+  <script src="src/ui/exemplos.js"></script>
+  <script src="src/ui/app.js"></script>
+</body>
+</html>
